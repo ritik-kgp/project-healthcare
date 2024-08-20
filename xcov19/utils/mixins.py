@@ -1,27 +1,25 @@
 import inspect
 
-
 class InterfaceProtocolCheckMixin:
-    """Checks for correct signature used by the implementation class.
-
-    Drop in mixin wherever an implementation is subclasses with an
-    interface definition.
-    """
-
     def __init_subclass__(cls, **kwargs):
-        parent_class = inspect.getmro(cls)[1]
-        for defined_method in (
-            method
-            for method in dir(cls)
-            if not method.startswith("__") and callable(getattr(cls, method))
-        ):
-            cls_method = getattr(parent_class, defined_method)
-            subclass_method = getattr(cls, defined_method)
-            cls_method_params = inspect.signature(cls_method).parameters
-            subclass_method_params = inspect.signature(subclass_method).parameters
-            if cls_method_params.keys() != subclass_method_params.keys():
-                raise NotImplementedError(f"""Signature for {defined_method} not correct:
-                Expected: {list(cls_method_params.keys())}
-                Got: {list(subclass_method_params.keys())}
-                """)
         super().__init_subclass__(**kwargs)
+        
+        for base in cls.__bases__:
+            if issubclass(base, InterfaceProtocolCheckMixin):
+                continue
+
+            for name, method in inspect.getmembers(base, predicate=inspect.isfunction):
+                if not callable(getattr(cls, name, None)):
+                    raise NotImplementedError(f"Method '{name}' is declared in interface '{base.__name__}' but not implemented in '{cls.__name__}'")
+                    
+                # Check method signature
+                interface_method = getattr(base, name)
+                impl_method = getattr(cls, name)
+                
+                interface_signature = inspect.signature(interface_method)
+                impl_signature = inspect.signature(impl_method)
+                
+                if interface_signature != impl_signature:
+                    raise NotImplementedError(f"Signature for '{name}' not correct:\n"
+                                              f"Expected: {interface_signature}\n"
+                                              f"Got: {impl_signature}\n")
